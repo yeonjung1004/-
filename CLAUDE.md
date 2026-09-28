@@ -18,6 +18,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **제출**: 백엔드가 아직 없어 `console.log`로만 출력합니다(`TODO` 주석 위치). 제출 후 폼을 리셋하고 글자수 카운터를 0으로 되돌린 뒤 성공 메시지를 보여줍니다.
 - **스타일**: 색상은 `style.css`의 `:root` CSS 변수로 관리합니다(인디고 계열 primary). 480px 이하에서 모바일 레이아웃이 적용됩니다.
 
+## 개인프로젝트/ — 엑셀 Q&A 기반 AI 상담 챗봇
+
+루트의 문의 폼과 별개의 프로젝트입니다(목표: 엑셀 Q&A → RAG/LLM → 카카오톡 상담 챗봇). 현재는 LLM 없이 브라우저에서만 동작하는 1단계입니다.
+
+- **데이터**: 시작 시 `DEFAULT_QA_FILES`(`qa.xlsx`, `Q&A예제.xlsx`)를 순서대로 `fetch`하고, 모두 없으면 `sample-qa.js`의 `SAMPLE_QA`를 사용합니다. 헤더의 [엑셀 불러오기]로 xlsx/csv를 직접 올릴 수도 있습니다. 엑셀 파싱은 CDN의 SheetJS(`XLSX`)로 첫 시트만 읽으며 두 형식을 지원합니다.
+  - 표 형식(`tableToQa`): 머리글 줄을 `COLUMN_ALIASES`로 찾음(질문·답변 필수, 카테고리·키워드 선택). 예시는 `qa-template.csv`.
+  - 줄 형식(`linesToQa`): 셀을 위→아래로 읽어 `Q: 질문` 다음 `A: 답변`을 한 쌍으로 묶음. 사용자의 실제 엑셀(`Q&A예제.xlsx`)이 이 형식입니다.
+- **검색**: 한국어 2글자 단위(bigram) Dice 유사도 + 키워드 열 일치 가산점. `ANSWER_THRESHOLD` 이상이면 답변, `SUGGEST_THRESHOLD` 이상이면 추천 질문 제시, 그 미만이면 상담원 연결을 안내합니다. 등록된 Q&A 밖의 답변은 만들지 않는 것이 원칙입니다.
+- 상담원 연결은 아직 안내 메시지뿐입니다(`TODO` 주석 위치).
+- `file://`로 직접 열면 `qa.xlsx` 자동 로드가 막히므로 정적 서버로 실행해야 합니다.
+
 ## 규칙
 
 - UI 문구, 코드 주석, 커밋 메시지는 한국어로 작성합니다.

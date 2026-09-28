@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 상담 챗봇</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="chat">
+    <header class="chat-header">
+      <div class="bot-avatar" aria-hidden="true">AI</div>
+      <div class="bot-info">
+        <h1>AI 상담봇</h1>
+        <p class="status"><span class="dot"></span>24시간 상담 가능</p>
+      </div>
+      <label class="upload-btn" title="Q&A 엑셀 파일 불러오기">
+        엑셀 불러오기
+        <input type="file" id="qa-file" accept=".xlsx,.xls,.csv" hidden>
+      </label>
+    </header>
+
+    <section class="messages" id="messages" aria-live="polite"></section>
+
+    <div class="quick-replies" id="quick-replies"></div>
+
+    <form class="composer" id="composer">
+      <input type="text" id="user-input" placeholder="궁금한 점을 입력해주세요" autocomplete="off" maxlength="300">
+      <button type="submit" id="send-btn" aria-label="보내기">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+      </button>
+    </form>
+  </main>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="sample-qa.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
