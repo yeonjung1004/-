@@ -1,0 +1,4 @@
+node_modules/
+# DB 접속 정보(비밀번호 포함)
+.env
+.env.local

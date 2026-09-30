@@ -155,10 +155,21 @@ textarea.invalid {
   background: var(--primary-hover);
 }
 
+.submit-btn:disabled {
+  background: var(--muted);
+  cursor: not-allowed;
+}
+
 .success {
   margin-top: 16px;
   text-align: center;
   color: var(--success);
+  font-weight: 600;
+}
+
+.form-error {
+  margin-top: 16px;
+  text-align: center;
   font-weight: 600;
 }
 

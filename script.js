@@ -1,5 +1,7 @@
 const form = document.getElementById("contact-form");
 const successMsg = document.getElementById("form-success");
+const formError = document.getElementById("form-error");
+const submitBtn = form.querySelector(".submit-btn");
 const phoneInput = document.getElementById("phone");
 const messageInput = document.getElementById("message");
 const messageCount = document.getElementById("message-count");
@@ -50,9 +52,10 @@ form.querySelectorAll("input, textarea").forEach((input) => {
   });
 });
 
-form.addEventListener("submit", (e) => {
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   successMsg.hidden = true;
+  formError.hidden = true;
 
   const inputs = [...form.querySelectorAll("input, textarea")];
   const results = inputs.map(validateField);
@@ -62,10 +65,37 @@ form.addEventListener("submit", (e) => {
   }
 
   const data = Object.fromEntries(new FormData(form));
-  // TODO: 백엔드 구현 후 여기서 서버로 전송
-  console.log("문의 데이터:", data);
+  submitBtn.disabled = true;
+  submitBtn.textContent = "보내는 중...";
 
-  form.reset();
-  messageCount.textContent = "0";
-  successMsg.hidden = false;
+  try {
+    const res = await fetch("/api/inquiries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // 서버 검증 오류는 해당 필드 아래에 표시
+      const fieldErrors = Object.entries(result.errors ?? {});
+      fieldErrors.forEach(([name, message]) => {
+        document.getElementById(`${name}-error`).textContent = message;
+        form.elements[name].classList.add("invalid");
+      });
+      if (fieldErrors.length) form.elements[fieldErrors[0][0]].focus();
+      throw new Error(result.error ?? "문의 접수에 실패했습니다.");
+    }
+
+    form.reset();
+    messageCount.textContent = "0";
+    successMsg.hidden = false;
+  } catch (err) {
+    formError.textContent =
+      err instanceof TypeError ? "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." : err.message;
+    formError.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "문의 보내기";
+  }
 });

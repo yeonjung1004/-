@@ -1,0 +1,27 @@
+{
+  "name": "supabase-db",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Supabase Postgres + Drizzle ORM 프로젝트",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "server": "tsx server.ts",
+    "start": "tsx index.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "drizzle-orm": "^0.45.3",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
