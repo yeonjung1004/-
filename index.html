@@ -45,6 +45,42 @@
       <p class="success" id="form-success" role="status" hidden>문의가 접수되었습니다. 감사합니다!</p>
       <p class="error form-error" id="form-error" role="alert" hidden></p>
     </form>
+
+    <!-- 화면 구성을 보기 위한 가상 후기 (실제 고객 후기 아님) -->
+    <section class="reviews" aria-labelledby="reviews-title">
+      <div class="reviews-header">
+        <h2 id="reviews-title">고객 후기</h2>
+        <span class="sample-badge">예시 후기</span>
+      </div>
+      <p class="reviews-note">아래 후기는 화면 구성을 보여주기 위한 가상의 예시입니다.</p>
+
+      <ul class="review-list">
+        <li class="review-card">
+          <div class="review-top">
+            <span class="review-stars" aria-label="별점 5점 만점에 5점">★★★★★</span>
+            <span class="review-date">2026. 09. 28.</span>
+          </div>
+          <p class="review-text">문의 남기고 다음 날 바로 연락을 받았어요. 궁금했던 부분을 차근차근 설명해 주셔서 좋았습니다.</p>
+          <p class="review-author">김○○ 님</p>
+        </li>
+        <li class="review-card">
+          <div class="review-top">
+            <span class="review-stars" aria-label="별점 5점 만점에 4점">★★★★<span class="star-off">★</span></span>
+            <span class="review-date">2026. 09. 21.</span>
+          </div>
+          <p class="review-text">폼이 간단해서 작성하기 편했어요. 답변도 친절했고, 처리 과정을 중간중간 알려주셔서 안심됐습니다.</p>
+          <p class="review-author">이○○ 님</p>
+        </li>
+        <li class="review-card">
+          <div class="review-top">
+            <span class="review-stars" aria-label="별점 5점 만점에 5점">★★★★★</span>
+            <span class="review-date">2026. 09. 15.</span>
+          </div>
+          <p class="review-text">전화로 물어보기 애매한 내용이었는데 글로 남길 수 있어서 편했습니다. 꼼꼼하게 답변해 주셨어요.</p>
+          <p class="review-author">박○○ 님</p>
+        </li>
+      </ul>
+    </section>
   </main>
 
   <script src="script.js"></script>
