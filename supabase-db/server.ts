@@ -1,8 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { db } from './db'
-import { inquiries } from './drizzle/schema'
+import * as store from './store'
 
 const PORT = Number(process.env.PORT ?? 5500)
 // 문의 폼 파일이 있는 상위 폴더
@@ -14,14 +13,19 @@ const STATIC_FILES: Record<string, [string, string]> = {
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/script.js': ['script.js', 'text/javascript; charset=utf-8'],
+  // 관리자 페이지 (인증 없음)
+  '/admin': ['admin.html', 'text/html; charset=utf-8'],
+  '/admin.html': ['admin.html', 'text/html; charset=utf-8'],
+  '/admin.css': ['admin.css', 'text/css; charset=utf-8'],
+  '/admin.js': ['admin.js', 'text/javascript; charset=utf-8'],
 }
 
 // 클라이언트(script.js)의 검증 규칙과 동일하게 유지
 const LIMITS = { name: 100, email: 255, phone: 13, message: 1000 }
+// admin.html의 메모 maxlength와 동일
+const MEMO_LIMIT = 500
 
-type InquiryInput = { name: string; email: string; phone: string; message: string }
-
-function validate(body: unknown): { data?: InquiryInput; errors?: Record<string, string> } {
+function validate(body: unknown): { data?: store.InquiryInput; errors?: Record<string, string> } {
   const src = (body ?? {}) as Record<string, unknown>
   const get = (key: keyof typeof LIMITS) => (typeof src[key] === 'string' ? (src[key] as string).trim() : '')
   const data = { name: get('name'), email: get('email'), phone: get('phone'), message: get('message') }
@@ -67,7 +71,7 @@ async function handleInquiry(req: IncomingMessage, res: ServerResponse) {
   if (!data) return sendJson(res, 400, { error: '입력값을 확인해주세요.', errors })
 
   try {
-    const [saved] = await db.insert(inquiries).values(data).returning({ id: inquiries.id })
+    const saved = (await store.createInquiry(data))!
     console.log(`문의 저장 완료: id=${saved.id}`)
     sendJson(res, 201, { id: saved.id })
   } catch (e) {
@@ -76,13 +80,119 @@ async function handleInquiry(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+async function listInquiries(res: ServerResponse) {
+  try {
+    sendJson(res, 200, { inquiries: await store.listInquiries() })
+  } catch (e) {
+    console.error('문의 목록 조회 실패:', e)
+    sendJson(res, 500, { error: '문의 목록을 불러오지 못했습니다.' })
+  }
+}
+
+async function updateInquiry(req: IncomingMessage, res: ServerResponse, id: number) {
+  let body: unknown
+  try {
+    body = await readJson(req)
+  } catch {
+    return sendJson(res, 400, { error: '잘못된 요청입니다.' })
+  }
+
+  // 수정도 제출과 같은 검증 규칙을 적용
+  const { data, errors } = validate(body)
+  if (!data) return sendJson(res, 400, { error: '입력값을 확인해주세요.', errors })
+
+  try {
+    const updated = await store.updateInquiry(id, data)
+    if (!updated) return sendJson(res, 404, { error: '문의를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.' })
+    console.log(`문의 수정 완료: id=${id}`)
+    sendJson(res, 200, { inquiry: updated })
+  } catch (e) {
+    console.error('문의 수정 실패:', e)
+    sendJson(res, 500, { error: '문의 수정 중 오류가 발생했습니다.' })
+  }
+}
+
+async function deleteInquiry(res: ServerResponse, id: number) {
+  try {
+    const deleted = await store.deleteInquiry(id)
+    if (deleted === undefined) return sendJson(res, 404, { error: '문의를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.' })
+    console.log(`문의 삭제 완료: id=${id}`)
+    sendJson(res, 200, { id })
+  } catch (e) {
+    console.error('문의 삭제 실패:', e)
+    sendJson(res, 500, { error: '문의 삭제 중 오류가 발생했습니다.' })
+  }
+}
+
+async function addMemo(req: IncomingMessage, res: ServerResponse, inquiryId: number) {
+  let body: unknown
+  try {
+    body = await readJson(req)
+  } catch {
+    return sendJson(res, 400, { error: '잘못된 요청입니다.' })
+  }
+
+  const raw = (body as Record<string, unknown> | null)?.content
+  const content = typeof raw === 'string' ? raw.trim() : ''
+  if (!content) return sendJson(res, 400, { error: '메모 내용을 입력해주세요.' })
+  if (content.length > MEMO_LIMIT) return sendJson(res, 400, { error: `메모는 ${MEMO_LIMIT}자 이내로 입력해주세요.` })
+
+  try {
+    const memo = await store.addMemo(inquiryId, content)
+    if (!memo) return sendJson(res, 404, { error: '문의를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.' })
+    console.log(`메모 추가 완료: 문의 id=${inquiryId}, 메모 id=${memo.id}`)
+    sendJson(res, 201, { memo })
+  } catch (e) {
+    console.error('메모 추가 실패:', e)
+    sendJson(res, 500, { error: '메모 저장 중 오류가 발생했습니다.' })
+  }
+}
+
+async function deleteMemo(res: ServerResponse, inquiryId: number, memoId: number) {
+  try {
+    const deleted = await store.deleteMemo(inquiryId, memoId)
+    if (deleted === undefined) return sendJson(res, 404, { error: '메모를 찾을 수 없습니다. 이미 삭제되었을 수 있습니다.' })
+    console.log(`메모 삭제 완료: 문의 id=${inquiryId}, 메모 id=${memoId}`)
+    sendJson(res, 200, { id: memoId })
+  } catch (e) {
+    console.error('메모 삭제 실패:', e)
+    sendJson(res, 500, { error: '메모 삭제 중 오류가 발생했습니다.' })
+  }
+}
+
+function methodNotAllowed(res: ServerResponse, allow: string) {
+  res.setHeader('Allow', allow)
+  sendJson(res, 405, { error: '허용되지 않은 메서드입니다.' })
+}
+
 const server = createServer(async (req, res) => {
   const path = new URL(req.url ?? '/', 'http://localhost').pathname
 
   if (path === '/api/inquiries') {
     if (req.method === 'POST') return handleInquiry(req, res)
-    res.setHeader('Allow', 'POST')
-    return sendJson(res, 405, { error: '허용되지 않은 메서드입니다.' })
+    if (req.method === 'GET') return listInquiries(res)
+    return methodNotAllowed(res, 'GET, POST')
+  }
+
+  // /api/inquiries/:id — 관리자 페이지의 수정·삭제
+  const match = path.match(/^\/api\/inquiries\/(\d{1,9})$/)
+  if (match) {
+    const id = Number(match[1])
+    if (req.method === 'PUT') return updateInquiry(req, res, id)
+    if (req.method === 'DELETE') return deleteInquiry(res, id)
+    return methodNotAllowed(res, 'PUT, DELETE')
+  }
+
+  // /api/inquiries/:id/memos — 메모 추가, /api/inquiries/:id/memos/:memoId — 메모 삭제
+  const memoMatch = path.match(/^\/api\/inquiries\/(\d{1,9})\/memos(?:\/(\d{1,9}))?$/)
+  if (memoMatch) {
+    const inquiryId = Number(memoMatch[1])
+    if (!memoMatch[2]) {
+      if (req.method === 'POST') return addMemo(req, res, inquiryId)
+      return methodNotAllowed(res, 'POST')
+    }
+    if (req.method === 'DELETE') return deleteMemo(res, inquiryId, Number(memoMatch[2]))
+    return methodNotAllowed(res, 'DELETE')
   }
 
   const file = STATIC_FILES[path]
@@ -103,4 +213,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`문의 폼 서버 실행 중: http://localhost:${PORT}`)
+  console.log(`문의 저장 위치: ${store.DATA_FILE}`)
 })

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>문의 관리</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="admin">
+    <header class="admin-header">
+      <div>
+        <h1>문의 관리</h1>
+        <p class="muted">접수된 문의를 조회하고 수정·삭제할 수 있습니다.</p>
+      </div>
+      <a class="link-btn" href="/">문의 폼 보기 →</a>
+    </header>
+
+    <section class="toolbar">
+      <input type="search" id="search" placeholder="이름, 이메일, 전화번호, 내용 검색" aria-label="문의 검색">
+      <button type="button" id="refresh-btn" class="btn btn-secondary">새로고침</button>
+    </section>
+
+    <p class="summary" id="summary" role="status"></p>
+    <p class="error banner" id="list-error" role="alert" hidden></p>
+
+    <div class="table-wrap">
+      <table class="inquiry-table">
+        <thead>
+          <tr>
+            <th class="col-id">번호</th>
+            <th class="col-date">접수일시</th>
+            <th class="col-name">이름</th>
+            <th class="col-contact">연락처</th>
+            <th>문의내용</th>
+            <th class="col-actions"><span class="sr-only">관리</span></th>
+          </tr>
+        </thead>
+        <tbody id="inquiry-list"></tbody>
+      </table>
+      <p class="empty" id="empty" hidden></p>
+    </div>
+  </main>
+
+  <dialog id="edit-dialog" class="edit-dialog" aria-labelledby="dialog-title">
+    <form id="edit-form" novalidate>
+      <header class="dialog-header">
+        <div>
+          <h2 id="dialog-title">문의 상세</h2>
+          <p class="muted" id="dialog-meta"></p>
+        </div>
+        <button type="button" class="icon-btn" data-close aria-label="닫기">×</button>
+      </header>
+
+      <div class="field">
+        <label for="name">이름</label>
+        <input type="text" id="name" name="name" maxlength="100" required>
+        <p class="error" id="name-error"></p>
+      </div>
+
+      <div class="field">
+        <label for="email">이메일</label>
+        <input type="email" id="email" name="email" maxlength="255" required>
+        <p class="error" id="email-error"></p>
+      </div>
+
+      <div class="field">
+        <label for="phone">전화번호</label>
+        <input type="tel" id="phone" name="phone" inputmode="numeric" maxlength="13" required>
+        <p class="error" id="phone-error"></p>
+      </div>
+
+      <div class="field">
+        <label for="message">문의내용</label>
+        <textarea id="message" name="message" rows="7" maxlength="1000" required></textarea>
+        <div class="field-footer">
+          <p class="error" id="message-error"></p>
+          <span class="counter"><span id="message-count">0</span> / 1000</span>
+        </div>
+      </div>
+
+      <p class="error banner" id="form-error" role="alert" hidden></p>
+
+      <footer class="dialog-actions">
+        <button type="button" id="delete-btn" class="btn btn-danger">삭제</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-secondary" data-close>취소</button>
+        <button type="submit" id="save-btn" class="btn btn-primary">저장</button>
+      </footer>
+    </form>
+
+    <!-- 메모는 문의 수정과 별개로 바로 저장됨 (수정 폼과 분리) -->
+    <section class="memo-section" aria-labelledby="memo-title">
+      <h3 id="memo-title">메모 <span class="memo-count" id="memo-count"></span></h3>
+      <ul class="memo-list" id="memo-list"></ul>
+      <p class="memo-empty" id="memo-empty">아직 남긴 메모가 없습니다.</p>
+
+      <form id="memo-form" class="memo-form" novalidate>
+        <label for="memo-input" class="sr-only">새 메모</label>
+        <textarea id="memo-input" rows="3" maxlength="500" placeholder="처리 내용, 연락 기록 등을 메모로 남겨두세요."></textarea>
+        <div class="field-footer">
+          <p class="error" id="memo-error" role="alert"></p>
+          <span class="counter"><span id="memo-input-count">0</span> / 500</span>
+        </div>
+        <div class="memo-form-actions">
+          <button type="submit" id="memo-add-btn" class="btn btn-primary btn-sm">메모 추가</button>
+        </div>
+      </form>
+    </section>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

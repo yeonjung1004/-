@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-프레임워크 없이 순수 HTML/CSS/JS로 만든 한국어 "문의하기" 폼 페이지(`index.html`, `style.css`, `script.js`)와, 제출 내용을 Supabase Postgres에 저장하는 Node 서버(`supabase-db/`)로 구성됩니다. 테스트나 린트 설정은 없습니다.
+프레임워크 없이 순수 HTML/CSS/JS로 만든 한국어 "문의하기" 폼 페이지(`index.html`, `style.css`, `script.js`)와, 제출 내용을 AI 폴더의 로컬 파일(`data/inquiries.json`)에 저장하는 Node 서버(`supabase-db/`)로 구성됩니다. 테스트나 린트 설정은 없습니다.
 
 ## 실행
 
@@ -18,9 +18,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **제출**: `POST /api/inquiries`로 JSON을 보냅니다. 성공 시에만 폼 리셋·카운터 0·성공 메시지를 보여주고, 실패 시 입력값을 유지한 채 `#form-error`에 메시지를, 서버 검증 오류(`errors`)는 각 `#<name>-error`에 표시합니다.
 - **스타일**: 색상은 `style.css`의 `:root` CSS 변수로 관리합니다(인디고 계열 primary). 480px 이하에서 모바일 레이아웃이 적용됩니다.
 
-## supabase-db/ — 문의 저장 서버 (Drizzle ORM)
+## 관리자 페이지 (`admin.html`, `admin.css`, `admin.js`)
 
-- `server.ts`: Node `http` 서버. 루트의 폼 파일 3개만 화이트리스트로 서빙하고(상위 폴더의 개인 파일 노출 방지), `POST /api/inquiries`를 받아 검증 후 `inquiries` 테이블에 저장합니다. **서버 검증 규칙과 길이 제한(`LIMITS`)은 `script.js`의 `validators`, HTML `maxlength`, `drizzle/schema.ts`의 varchar 길이와 맞춰야 합니다.**
+`/admin`에서 접수된 문의를 조회·검색·수정·삭제합니다. **인증이 없으므로** 주소를 아는 누구나 개인정보를 보고 고칠 수 있습니다. 외부에 공개하기 전에 인증을 추가해야 합니다.
+
+- API: `GET /api/inquiries`(최신순 목록), `PUT /api/inquiries/:id`(제출과 같은 `validate` 적용), `DELETE /api/inquiries/:id`. 없는 id는 404를 반환합니다.
+- 목록은 한 번에 모두 받아 브라우저에서 검색합니다(페이지네이션 없음). 사용자 입력은 `textContent`로만 렌더링합니다(XSS 방지).
+- 수정 대화상자의 `validators`와 전화번호 자동 하이픈은 `script.js`와 같은 규칙이므로 함께 맞춰야 합니다.
+- 720px 이하에서는 표가 카드 목록으로 바뀝니다.
+- **메모**: 한 문의에 메모를 여러 개 남길 수 있습니다(추가·삭제만, 수정 없음). 수정 대화상자 아래 `#memo-form`은 문의 수정 폼과 별개의 form이며 추가 즉시 저장됩니다. API: `POST /api/inquiries/:id/memos`(`{ content }`, 최대 500자 — 서버 `MEMO_LIMIT`과 HTML `maxlength`를 맞출 것), `DELETE /api/inquiries/:id/memos/:memoId`. 문의를 삭제하면 메모도 함께 삭제됩니다.
+
+## supabase-db/ — 문의 저장 서버
+
+- `server.ts`: Node `http` 서버. 루트의 폼·관리자 페이지 파일만 화이트리스트로 서빙하고(상위 폴더의 개인 파일 노출 방지), API 요청을 검증한 뒤 `store.ts`로 저장합니다. **서버 검증 규칙과 길이 제한(`LIMITS`)은 `script.js`·`admin.js`의 `validators`, HTML `maxlength`와 맞춰야 합니다.**
+- `store.ts`: 저장소. Supabase 접속이 안 되어 **AI 폴더의 `data/inquiries.json`** 에 문의와 메모(`memos` 배열)를 저장합니다. 쓰기는 큐로 하나씩 처리하고 임시 파일→이름 변경으로 저장해 파일이 깨지지 않게 합니다. `data/`는 개인정보라 `.gitignore` 대상이며, 파일이 없으면 빈 상태로 시작합니다.
+- `store-db.ts`: 같은 함수를 Drizzle로 구현한 Supabase 저장소(아직 미사용). 응답 모양(`memos` 배열 포함)이 `store.ts`와 같아서 `server.ts`의 import만 바꾸면 전환됩니다.
+
+### Supabase (현재 서버에서 사용하지 않음)
+
+`.env`의 두 URL에 비밀번호 대신 `[YOUR-PASSWORD]` 자리표시자가 남아 있어 접속이 실패합니다. 실제 비밀번호로 바꾼 뒤 `npm run db:migrate`로 `inquiry_memos` 테이블(`0001_add_inquiry_memos`)을 적용하고 `store-db.ts`로 전환하세요. 비밀번호의 특수문자는 URL 인코딩해야 합니다.
+
 - `db.ts`: 접속 공용 모듈. `supabase-db/.env`를 경로 고정으로 읽습니다. `DATABASE_URL`은 트랜잭션 모드 풀러(6543)라 `prepare: false`가 필요합니다.
 - 스키마는 `drizzle/schema.ts`, 마이그레이션은 `drizzle/migrations/`. 스키마 변경 후 `npm run db:generate` → `npm run db:migrate`. drizzle-kit은 `DIRECT_URL`(세션 모드 5432)을 사용합니다.
 - `npm start`(`index.ts`)는 저장된 문의 목록을 출력합니다.
