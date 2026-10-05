@@ -60,6 +60,10 @@ form.addEventListener("submit", async (e) => {
   const inputs = [...form.querySelectorAll("input, textarea")];
   const results = inputs.map(validateField);
   if (results.includes(false)) {
+    // 분석 이벤트에는 입력값 없이 오류 필드 이름만 보냄
+    track("inquiry_validation_failed", {
+      fields: inputs.filter((_, i) => !results[i]).map((el) => el.name),
+    });
     inputs[results.indexOf(false)].focus();
     return;
   }
@@ -90,7 +94,9 @@ form.addEventListener("submit", async (e) => {
     form.reset();
     messageCount.textContent = "0";
     successMsg.hidden = false;
+    track("inquiry_submitted", { message_length: data.message.length });
   } catch (err) {
+    track("inquiry_submit_failed", { reason: err instanceof TypeError ? "network" : "server" });
     formError.textContent =
       err instanceof TypeError ? "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." : err.message;
     formError.hidden = false;

@@ -13,6 +13,7 @@ const STATIC_FILES: Record<string, [string, string]> = {
   '/index.html': ['index.html', 'text/html; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/script.js': ['script.js', 'text/javascript; charset=utf-8'],
+  '/analytics.js': ['analytics.js', 'text/javascript; charset=utf-8'],
   // 관리자 페이지 (인증 없음)
   '/admin': ['admin.html', 'text/html; charset=utf-8'],
   '/admin.html': ['admin.html', 'text/html; charset=utf-8'],

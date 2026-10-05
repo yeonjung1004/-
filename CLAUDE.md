@@ -16,6 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **검증 시점**: blur 시 검사하고, 이미 `invalid` 클래스가 붙은 필드는 입력할 때마다 재검사합니다. 제출 시 전체 검사 후 첫 번째 오류 필드로 포커스를 이동합니다.
 - **전화번호**: 입력 시 자동으로 하이픈을 넣습니다(`02` 서울 지역번호는 별도 처리). 검증 정규식 `^0\d{1,2}-\d{3,4}-\d{4}$`와 포맷 로직이 서로 맞아야 합니다.
 - **제출**: `POST /api/inquiries`로 JSON을 보냅니다. 성공 시에만 폼 리셋·카운터 0·성공 메시지를 보여주고, 실패 시 입력값을 유지한 채 `#form-error`에 메시지를, 서버 검증 오류(`errors`)는 각 `#<name>-error`에 표시합니다.
+- **분석** (`analytics.js`): PostHog(US). `POSTHOG_KEY`가 비어 있으면 로드하지 않고 `track()`은 아무것도 하지 않습니다. 이벤트는 `inquiry_submitted`·`inquiry_submit_failed`·`inquiry_validation_failed`이며 **입력값(개인정보)은 보내지 않고** 필드 이름·글자 수만 보냅니다. 관리자 페이지에는 넣지 않습니다.
 - **스타일**: 색상은 `style.css`의 `:root` CSS 변수로 관리합니다(인디고 계열 primary). 480px 이하에서 모바일 레이아웃이 적용됩니다.
 
 ## 관리자 페이지 (`admin.html`, `admin.css`, `admin.js`)
