@@ -6,6 +6,25 @@ const phoneInput = document.getElementById("phone");
 const messageInput = document.getElementById("message");
 const messageCount = document.getElementById("message-count");
 
+const UNEXPECTED_MESSAGE = "예상치 못한 오류가 발생했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.";
+
+// 원인을 알고 있는 제출 실패 (reason: "network" | "server") — 메시지를 그대로 사용자에게 보여줌
+class SubmitError extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
+// 이 페이지 코드에서 잡지 못한 오류 — 사용자에게 안내하고 PostHog에 기록 (입력값은 보내지 않음)
+window.addEventListener("error", (e) => {
+  if (!e.filename?.endsWith("/script.js")) return; // PostHog 등 외부 스크립트 오류는 무시
+  console.error("예상치 못한 오류:", e.error ?? e.message);
+  track("client_error", { message: String(e.message).slice(0, 200) });
+  formError.textContent = UNEXPECTED_MESSAGE;
+  formError.hidden = false;
+});
+
 const validators = {
   name: (v) => (v.trim() ? "" : "이름을 입력해주세요."),
   email: (v) => {
@@ -73,22 +92,28 @@ form.addEventListener("submit", async (e) => {
   submitBtn.textContent = "보내는 중...";
 
   try {
-    const res = await fetch("/api/inquiries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+    let res;
+    try {
+      res = await fetch("/api/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      throw new SubmitError("network", "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    }
     const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      // 서버 검증 오류는 해당 필드 아래에 표시
-      const fieldErrors = Object.entries(result.errors ?? {});
+      // 서버 검증 오류는 해당 필드 아래에 표시 (폼에 없는 필드 이름은 무시)
+      const fieldErrors = Object.entries(result.errors ?? {}).filter(([name]) => form.elements[name]);
       fieldErrors.forEach(([name, message]) => {
-        document.getElementById(`${name}-error`).textContent = message;
+        const errorEl = document.getElementById(`${name}-error`);
+        if (errorEl) errorEl.textContent = message;
         form.elements[name].classList.add("invalid");
       });
       if (fieldErrors.length) form.elements[fieldErrors[0][0]].focus();
-      throw new Error(result.error ?? "문의 접수에 실패했습니다.");
+      throw new SubmitError("server", result.error ?? "문의 접수에 실패했습니다.");
     }
 
     form.reset();
@@ -96,9 +121,11 @@ form.addEventListener("submit", async (e) => {
     successMsg.hidden = false;
     track("inquiry_submitted", { message_length: data.message.length });
   } catch (err) {
-    track("inquiry_submit_failed", { reason: err instanceof TypeError ? "network" : "server" });
-    formError.textContent =
-      err instanceof TypeError ? "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." : err.message;
+    // 네트워크·서버 오류는 준비된 안내 문구를, 그 밖의 예상치 못한 오류는 일반 문구를 보여줌
+    const known = err instanceof SubmitError;
+    if (!known) console.error("문의 제출 중 예상치 못한 오류:", err);
+    track("inquiry_submit_failed", { reason: known ? err.reason : "unexpected" });
+    formError.textContent = known ? err.message : UNEXPECTED_MESSAGE;
     formError.hidden = false;
   } finally {
     submitBtn.disabled = false;

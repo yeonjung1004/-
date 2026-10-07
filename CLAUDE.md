@@ -33,6 +33,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `server.ts`: Node `http` 서버. 루트의 폼·관리자 페이지 파일만 화이트리스트로 서빙하고(상위 폴더의 개인 파일 노출 방지), API 요청을 검증한 뒤 `store.ts`로 저장합니다. **서버 검증 규칙과 길이 제한(`LIMITS`)은 `script.js`·`admin.js`의 `validators`, HTML `maxlength`와 맞춰야 합니다.**
 - `store.ts`: 저장소. Supabase 접속이 안 되어 **AI 폴더의 `data/inquiries.json`** 에 문의와 메모(`memos` 배열)를 저장합니다. 쓰기는 큐로 하나씩 처리하고 임시 파일→이름 변경으로 저장해 파일이 깨지지 않게 합니다. `data/`는 개인정보라 `.gitignore` 대상이며, 파일이 없으면 빈 상태로 시작합니다.
+- **오류 처리**: 각 API는 오류를 잡아 500과 한국어 안내를 반환하고, 그 밖의 예상치 못한 오류는 `server.ts`의 최상위 `try/catch`와 `process.on('unhandledRejection'|'uncaughtException')`이 받아 **서버를 끄지 않고** 기록합니다(재시작해 줄 관리 도구가 없기 때문). 오류는 `logger.ts`의 `logError`로 터미널과 **`logs/error.log`**(`.gitignore` 대상)에 남기며, 요청 본문(개인정보)은 기록하지 않습니다.
+- **오류 알림 메일** (`alert.ts`): `logError`가 호출될 때마다 Resend API로 메일을 보냅니다(패키지 없이 `fetch`). `.env`의 `RESEND_API_KEY`·`ERROR_ALERT_EMAIL`을 읽고, 키가 비었거나 형식이 맞지 않으면 꺼집니다(서버 시작 시 상태 출력). 발신 주소는 Resend 테스트용 `onboarding@resend.dev`라 **Resend 가입 이메일로만** 받을 수 있습니다(다른 주소는 도메인 인증 후 `ERROR_ALERT_FROM` 설정). 메일 폭주를 막으려고 10분에 1통만 보내고 그사이 건수는 다음 메일에 적습니다. 발송 실패는 터미널에만 출력합니다(`logError` 재호출 시 무한 반복).
+- **데이터 파일 손상**: 저장할 때마다 직전 정상본을 `data/inquiries.json.bak`으로 보관합니다. `inquiries.json`이 깨지면 원본을 `inquiries.corrupt-<시각>.json`으로 따로 남기고 `.bak`으로 복구해 계속 진행합니다(마지막 저장 1건이 빠질 수 있음). 둘 다 못 읽으면 빈 데이터로 시작하지 않고 `DataFileError`로 멈춰 기존 데이터를 덮어쓰지 않습니다.
+- **화면 쪽**: `script.js`·`admin.js`는 원인을 아는 실패(`SubmitError`·`RequestError`: 네트워크·서버 응답)만 그 메시지를 보여주고, 예상치 못한 오류는 기술적인 문구 대신 "예상치 못한 오류가 발생했습니다…"를 보여줍니다. 문의 폼의 예상치 못한 오류는 PostHog `client_error`(메시지 200자까지)와 `inquiry_submit_failed`(`reason: "unexpected"`)로 기록됩니다.
 - `store-db.ts`: 같은 함수를 Drizzle로 구현한 Supabase 저장소(아직 미사용). 응답 모양(`memos` 배열 포함)이 `store.ts`와 같아서 `server.ts`의 import만 바꾸면 전환됩니다.
 
 ### Supabase (현재 서버에서 사용하지 않음)

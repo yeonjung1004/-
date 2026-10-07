@@ -2,6 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import * as store from './store'
+import { logError, ERROR_LOG } from './logger'
+import { alertStatus } from './alert'
 
 const PORT = Number(process.env.PORT ?? 5500)
 // 문의 폼 파일이 있는 상위 폴더
@@ -76,7 +78,7 @@ async function handleInquiry(req: IncomingMessage, res: ServerResponse) {
     console.log(`문의 저장 완료: id=${saved.id}`)
     sendJson(res, 201, { id: saved.id })
   } catch (e) {
-    console.error('문의 저장 실패:', e)
+    logError('문의 저장 실패', e)
     sendJson(res, 500, { error: '문의 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' })
   }
 }
@@ -85,8 +87,10 @@ async function listInquiries(res: ServerResponse) {
   try {
     sendJson(res, 200, { inquiries: await store.listInquiries() })
   } catch (e) {
-    console.error('문의 목록 조회 실패:', e)
-    sendJson(res, 500, { error: '문의 목록을 불러오지 못했습니다.' })
+    logError('문의 목록 조회 실패', e)
+    // 관리자에게는 데이터 파일 손상 여부를 알려 직접 확인할 수 있게 함
+    const message = e instanceof store.DataFileError ? e.message : '문의 목록을 불러오지 못했습니다.'
+    sendJson(res, 500, { error: message })
   }
 }
 
@@ -108,7 +112,7 @@ async function updateInquiry(req: IncomingMessage, res: ServerResponse, id: numb
     console.log(`문의 수정 완료: id=${id}`)
     sendJson(res, 200, { inquiry: updated })
   } catch (e) {
-    console.error('문의 수정 실패:', e)
+    logError('문의 수정 실패', e)
     sendJson(res, 500, { error: '문의 수정 중 오류가 발생했습니다.' })
   }
 }
@@ -120,7 +124,7 @@ async function deleteInquiry(res: ServerResponse, id: number) {
     console.log(`문의 삭제 완료: id=${id}`)
     sendJson(res, 200, { id })
   } catch (e) {
-    console.error('문의 삭제 실패:', e)
+    logError('문의 삭제 실패', e)
     sendJson(res, 500, { error: '문의 삭제 중 오류가 발생했습니다.' })
   }
 }
@@ -144,7 +148,7 @@ async function addMemo(req: IncomingMessage, res: ServerResponse, inquiryId: num
     console.log(`메모 추가 완료: 문의 id=${inquiryId}, 메모 id=${memo.id}`)
     sendJson(res, 201, { memo })
   } catch (e) {
-    console.error('메모 추가 실패:', e)
+    logError('메모 추가 실패', e)
     sendJson(res, 500, { error: '메모 저장 중 오류가 발생했습니다.' })
   }
 }
@@ -156,7 +160,7 @@ async function deleteMemo(res: ServerResponse, inquiryId: number, memoId: number
     console.log(`메모 삭제 완료: 문의 id=${inquiryId}, 메모 id=${memoId}`)
     sendJson(res, 200, { id: memoId })
   } catch (e) {
-    console.error('메모 삭제 실패:', e)
+    logError('메모 삭제 실패', e)
     sendJson(res, 500, { error: '메모 삭제 중 오류가 발생했습니다.' })
   }
 }
@@ -166,7 +170,7 @@ function methodNotAllowed(res: ServerResponse, allow: string) {
   sendJson(res, 405, { error: '허용되지 않은 메서드입니다.' })
 }
 
-const server = createServer(async (req, res) => {
+async function route(req: IncomingMessage, res: ServerResponse) {
   const path = new URL(req.url ?? '/', 'http://localhost').pathname
 
   if (path === '/api/inquiries') {
@@ -210,9 +214,36 @@ const server = createServer(async (req, res) => {
     res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
     res.end('파일을 읽을 수 없습니다.')
   }
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    await route(req, res)
+  } catch (e) {
+    // 각 기능에서 잡지 못한 예상치 못한 오류 — 서버는 계속 실행하고 사용자에게는 안내 문구만 보냄
+    logError(`요청 처리 중 예상치 못한 오류 (${req.method} ${req.url})`, e)
+    if (res.headersSent) return res.destroy()
+    sendJson(res, 500, { error: '예상치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' })
+  }
 })
+
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`포트 ${PORT}을(를) 이미 다른 프로그램이 쓰고 있습니다. 실행 중인 서버를 끄거나 PORT를 바꿔주세요.`)
+  } else {
+    logError('서버 시작 실패', e)
+  }
+  process.exit(1)
+})
+
+// 어디서도 잡지 못한 오류 — 이 서버는 재시작해 줄 관리 도구 없이 혼자 실행되므로,
+// 꺼지지 않고 기록만 남겨 다른 문의 접수는 계속 받도록 함
+process.on('unhandledRejection', (e) => logError('처리되지 않은 비동기 오류', e))
+process.on('uncaughtException', (e) => logError('처리되지 않은 오류', e))
 
 server.listen(PORT, () => {
   console.log(`문의 폼 서버 실행 중: http://localhost:${PORT}`)
   console.log(`문의 저장 위치: ${store.DATA_FILE}`)
+  console.log(`오류 기록 위치: ${ERROR_LOG}`)
+  console.log(`오류 알림 메일: ${alertStatus}`)
 })

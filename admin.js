@@ -78,6 +78,24 @@ function showToast(text) {
   toastTimer = setTimeout(() => (toast.hidden = true), 2500);
 }
 
+const UNEXPECTED_MESSAGE = "예상치 못한 오류가 발생했습니다. 페이지를 새로고침한 뒤 다시 시도해주세요.";
+
+// 원인을 알고 있는 요청 실패 (네트워크·서버 응답) — 메시지를 그대로 사용자에게 보여줌
+class RequestError extends Error {
+  constructor(message, { status, errors } = {}) {
+    super(message);
+    this.status = status;
+    this.errors = errors;
+  }
+}
+
+// 사용자에게 보여줄 오류 문구. 예상치 못한 오류는 기술적인 내용 대신 일반 문구로 바꿈
+function errorMessage(err) {
+  if (err instanceof RequestError) return err.message;
+  console.error("예상치 못한 오류:", err);
+  return UNEXPECTED_MESSAGE;
+}
+
 async function request(url, options = {}) {
   let res;
   try {
@@ -86,17 +104,28 @@ async function request(url, options = {}) {
       headers: { "Content-Type": "application/json", ...options.headers },
     });
   } catch {
-    throw new Error("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+    throw new RequestError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
   }
   const result = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const err = new Error(result.error ?? "요청을 처리하지 못했습니다.");
-    err.status = res.status;
-    err.errors = result.errors;
-    throw err;
+    throw new RequestError(result.error ?? "요청을 처리하지 못했습니다.", {
+      status: res.status,
+      errors: result.errors,
+    });
   }
   return result;
 }
+
+// 이 페이지 코드에서 잡지 못한 오류 — 화면이 멈춘 것처럼 보이지 않도록 안내
+window.addEventListener("error", (e) => {
+  if (!e.filename?.endsWith("/admin.js")) return;
+  console.error("예상치 못한 오류:", e.error ?? e.message);
+  showToast(UNEXPECTED_MESSAGE);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("처리되지 않은 오류:", e.reason);
+  showToast(UNEXPECTED_MESSAGE);
+});
 
 // ---------- 목록 ----------
 
@@ -206,7 +235,7 @@ async function loadInquiries() {
     inquiries = result.inquiries;
     render();
   } catch (err) {
-    listError.textContent = err.message;
+    listError.textContent = errorMessage(err);
     listError.hidden = false;
   } finally {
     refreshBtn.disabled = false;
@@ -320,14 +349,16 @@ form.addEventListener("submit", async (e) => {
     closeEditor();
     showToast("문의가 수정되었습니다.");
   } catch (err) {
-    const fieldErrors = Object.entries(err.errors ?? {});
+    // 폼에 없는 필드 이름은 무시
+    const fieldErrors = Object.entries(err.errors ?? {}).filter(([name]) => form.elements[name]);
     fieldErrors.forEach(([name, message]) => {
-      document.getElementById(`${name}-error`).textContent = message;
+      const errorEl = document.getElementById(`${name}-error`);
+      if (errorEl) errorEl.textContent = message;
       form.elements[name].classList.add("invalid");
     });
     if (fieldErrors.length) form.elements[fieldErrors[0][0]].focus();
     if (err.status === 404) removeFromList(id);
-    formError.textContent = err.message;
+    formError.textContent = errorMessage(err);
     formError.hidden = false;
   } finally {
     saveBtn.disabled = false;
@@ -354,7 +385,7 @@ deleteBtn.addEventListener("click", async () => {
       showToast("이미 삭제된 문의입니다.");
       return;
     }
-    formError.textContent = err.message;
+    formError.textContent = errorMessage(err);
     formError.hidden = false;
   } finally {
     deleteBtn.disabled = false;
@@ -435,7 +466,7 @@ memoForm.addEventListener("submit", async (e) => {
     memoInputCount.textContent = 0;
     showToast("메모가 추가되었습니다.");
   } catch (err) {
-    memoError.textContent = err.message;
+    memoError.textContent = errorMessage(err);
     if (err.status === 404) {
       removeFromList(id);
       closeEditor();
@@ -460,7 +491,7 @@ memoList.addEventListener("click", async (e) => {
     showToast("메모가 삭제되었습니다.");
   } catch (err) {
     if (err.status !== 404) {
-      memoError.textContent = err.message;
+      memoError.textContent = errorMessage(err);
       btn.disabled = false;
       return;
     }
