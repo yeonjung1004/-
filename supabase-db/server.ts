@@ -45,7 +45,12 @@ function validate(body: unknown): { data?: store.InquiryInput; errors?: Record<s
     if (!errors[key] && data[key].length > LIMITS[key]) errors[key] = `${LIMITS[key]}자 이내로 입력해주세요.`
   }
 
-  return Object.keys(errors).length ? { errors } : { data }
+  return Object.keys(errors).length ? { errors } : { data: { ...data, phone: sanitizePhone(data.phone) } }
+}
+
+// 저장 전에 전화번호에서 공백 등 불필요한 문자를 제거해 숫자와 하이픈만 남김
+function sanitizePhone(phone: string): string {
+  return phone.replace(/[\s\d]/g, '')
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
